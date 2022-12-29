@@ -9,36 +9,46 @@ import "./CryptixEvent.sol";
 
 contract CrytpixMarketplace {
     // uint256 listingPrice = 0.025 ether;
-    uint128 listingPrice = 3; // percent chare
-    uint128 createPrice = 6; // percent chare
+    uint256 listingPrice = 3; // percent chare
+    uint256 createPrice = 6; // percent chare
     address payable owner;
     mapping(uint256 => ICryptix.Event) idToEvent;
-    
+
     using Counters for Counters.Counter;
     Counters.Counter private _eventIds;
     Counters.Counter private _ticketsSold;
 
-    
+    event EventCreated(uint256 indexed eventId, address host);
 
-    event EventListed (
-      uint256 indexed eventId,
-      address host
-    );
+    event EventListed(uint256 indexed eventId, address host);
 
     constructor() {
-      owner = payable(msg.sender);
+        owner = payable(msg.sender);
     }
 
-    function CreateEvent(string memory title, string memory symbol, string memory data, ICryptix.Ticket[] calldata _tickets) public payable returns(uint) {
+    function CreateEvent(
+        string memory title,
+        string memory symbol,
+        string memory data,
+        ICryptix.InTicket[] calldata _tickets
+    ) public payable returns (uint256) {
         uint256 totalAmount = 0;
         uint256 totalTickets = 0;
         for (uint256 i = 0; i < _tickets.length; i++) {
             totalAmount += _tickets[i].price * _tickets[i].number;
             totalTickets += _tickets[i].number;
         }
-        require(msg.value >= (totalAmount * createPrice) / 100, "Amount must valid");
+        require(
+            msg.value >= (totalAmount * createPrice) / 100,
+            "Amount must valid"
+        );
         owner.transfer(msg.value);
-        CryptixEvent new_event = new CryptixEvent(payable(msg.sender),title,symbol,data,_tickets);
+        CryptixEvent new_event = new CryptixEvent(
+            payable(msg.sender),
+            title,
+            symbol,
+            _tickets
+        );
         _eventIds.increment();
         uint256 newEventId = _eventIds.current();
         ICryptix.Event storage cEvent = idToEvent[newEventId];
@@ -46,7 +56,16 @@ contract CrytpixMarketplace {
         cEvent.eventId = newEventId;
         cEvent.eventAddress = address(new_event);
         for (uint256 i = 0; i < _tickets.length; i++) {
-            cEvent.tickets.push(_tickets[i]);
+            cEvent.tickets.push(
+                ICryptix.Ticket(
+                    1,
+                    _tickets[i].number,
+                    0,
+                    _tickets[i].name,
+                    _tickets[i].price,
+                    _tickets[i].descUri
+                )
+            );
         }
         cEvent.totalAmount = totalAmount;
         cEvent.totalTickets = totalTickets;
@@ -56,31 +75,49 @@ contract CrytpixMarketplace {
         cEvent.dataUri = data;
         return newEventId;
     }
+
     /* Updates the listing price of the contract */
-    function updateListingPrice(uint128 _listingPrice) public payable {
-      require(owner == msg.sender, "Permission denied.");
-      listingPrice = _listingPrice;
-    }
-    /* Returns the listing price of the contract */
-    function getListingPrice() public view returns (uint128) {
-      return listingPrice;
-    }
-    /* Returns the create price of the contract */
-    function getCreatePrice() public view returns (uint128) {
-      return createPrice;
+    function updateListingPrice(uint256 _listingPrice) public payable {
+        require(
+            owner == msg.sender,
+            "Only marketplace admin can update listing price."
+        );
+        listingPrice = _listingPrice;
     }
 
-    function ListEvent(uint256 eventId) public payable returns(uint) {
-        require(idToEvent[eventId].host == msg.sender, "Permission denied");
+    /* Updates the listing price of the contract */
+    function updateCreatePrice(uint256 _price) public payable {
+        require(
+            owner == msg.sender,
+            "Only marketplace admin can update listing price."
+        );
+        createPrice = _price;
+    }
+
+    /* Returns the listing price of the contract */
+    function getListingPrice() public view returns (uint256) {
+        return listingPrice;
+    }
+
+    /* Returns the create price of the contract */
+    function getCreatePrice() public view returns (uint256) {
+        return createPrice;
+    }
+
+    function ListEvent(uint256 eventId) public payable returns (uint256) {
+        require(
+            idToEvent[eventId].host == msg.sender,
+            "Only the event host can list an event"
+        );
         require(idToEvent[eventId].listed == false, "Event already listed");
         // require(msg.value == listingPrice, "Invalid listing price");
-        require(msg.value >= (idToEvent[eventId].totalAmount * listingPrice) / 100, "Invalid listing price");
+        require(
+            msg.value >= (idToEvent[eventId].totalAmount * listingPrice) / 100,
+            "Invalid listing price"
+        );
         owner.transfer(msg.value);
         idToEvent[eventId].listed = true;
-        emit EventListed(
-            eventId,
-            msg.sender
-        );
+        emit EventListed(eventId, msg.sender);
         return eventId;
     }
 
@@ -115,26 +152,38 @@ contract CrytpixMarketplace {
 
     /* Returns all unsold market items */
     /* ::TODO:: rewrite Returns all unsold market items */
-    // function fetchMarketItems() public view returns (CEvent[] memory) {
-    //   uint itemCount = _tokenIds.current();
-    //   uint unsoldItemCount = _tokenIds.current() - _itemsSold.current();
-    //   uint currentIndex = 0;
-
-    //   MarketItem[] memory items = new MarketItem[](unsoldItemCount);
-    //   for (uint i = 0; i < itemCount; i++) {
-    //     if (idToMarketItem[i + 1].owner == address(this)) {
-    //       uint currentId = i + 1;
-    //       MarketItem storage currentItem = idToMarketItem[currentId];
-    //       items[currentIndex] = currentItem;
-    //       currentIndex += 1;
-    //     }
-    //   }
-    //   return items;
-    // }
+    function fetchListedEvents() public view returns (ICryptix.Event[] memory) {
+        uint256 eventsCount = _eventIds.current();
+        uint256 unsoldEventsCount = 0;
+        uint256 currentIndex = 0;
+        for (uint256 i = 0; i < eventsCount; i++) {
+            if (
+                idToEvent[i + 1].listed &&
+                idToEvent[i + 1].soldTickets >= idToEvent[i + 1].totalTickets
+            ) {
+                unsoldEventsCount += 1;
+            }
+        }
+        ICryptix.Event[] memory events = new ICryptix.Event[](
+            unsoldEventsCount
+        );
+        for (uint256 i = 0; i < eventsCount; i++) {
+            if (
+                idToEvent[i + 1].listed &&
+                idToEvent[i + 1].soldTickets >= idToEvent[i + 1].totalTickets
+            ) {
+                uint256 currentId = i + 1;
+                ICryptix.Event storage currentEvent = idToEvent[currentId];
+                events[currentIndex] = currentEvent;
+                currentIndex += 1;
+            }
+        }
+        return events;
+    }
 
     /* Returns only items that a user has purchased */
     // function fetchMyNFTs() public view returns (CEvent[] memory) {
-    //   uint totalItemCount = _tokenIds.current();
+    //   uint totalItemCount = _eventIds.current();
     //   uint itemCount = 0;
     //   uint currentIndex = 0;
 
@@ -158,7 +207,7 @@ contract CrytpixMarketplace {
 
     /* Returns only items a user has listed */
     // function fetchItemsListed() public view returns (CEvent[] memory) {
-    //   uint totalItemCount = _tokenIds.current();
+    //   uint totalItemCount = _eventIds.current();
     //   uint itemCount = 0;
     //   uint currentIndex = 0;
 
@@ -179,4 +228,60 @@ contract CrytpixMarketplace {
     //   }
     //   return items;
     // }
+
+    /* Returns only events a host has listed */
+    function fetchMyListedEvents()
+        public
+        view
+        returns (ICryptix.Event[] memory)
+    {
+        uint256 totalEventsCount = _eventIds.current();
+        uint256 eventCount = 0;
+        uint256 currentIndex = 0;
+
+        for (uint256 i = 0; i < totalEventsCount; i++) {
+            if (
+                idToEvent[i + 1].host == msg.sender && idToEvent[i + 1].listed
+            ) {
+                eventCount += 1;
+            }
+        }
+
+        ICryptix.Event[] memory events = new ICryptix.Event[](eventCount);
+        for (uint256 i = 0; i < totalEventsCount; i++) {
+            if (
+                idToEvent[i + 1].host == msg.sender && idToEvent[i + 1].listed
+            ) {
+                uint256 currentId = i + 1;
+                ICryptix.Event storage currentEvent = idToEvent[currentId];
+                events[currentIndex] = currentEvent;
+                currentIndex += 1;
+            }
+        }
+        return events;
+    }
+
+    /* Returns only events a host has created */
+    function fetchMyEvents() public view returns (ICryptix.Event[] memory) {
+        uint256 totalEventsCount = _eventIds.current();
+        uint256 eventCount = 0;
+        uint256 currentIndex = 0;
+
+        for (uint256 i = 0; i < totalEventsCount; i++) {
+            if (idToEvent[i + 1].host == msg.sender) {
+                eventCount += 1;
+            }
+        }
+
+        ICryptix.Event[] memory events = new ICryptix.Event[](eventCount);
+        for (uint256 i = 0; i < totalEventsCount; i++) {
+            if (idToEvent[i + 1].host == msg.sender) {
+                uint256 currentId = i + 1;
+                ICryptix.Event storage currentEvent = idToEvent[currentId];
+                events[currentIndex] = currentEvent;
+                currentIndex += 1;
+            }
+        }
+        return events;
+    }
 }

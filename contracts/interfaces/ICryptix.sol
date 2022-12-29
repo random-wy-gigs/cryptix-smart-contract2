@@ -12,6 +12,18 @@ interface ICryptix {
       uint256 sold;
       string name;
       uint256 price;
+      string descUri;
+    }
+    struct InTicket {
+      uint256 number;
+      string name;
+      uint256 price;
+      string descUri;
+    }
+    struct NftTicket {
+      uint256 number;
+      string name;
+      string descUri;
     }
     struct Event {
         uint256 eventId;

@@ -12,10 +12,10 @@ contract CryptixEvent is ERC721URIStorage {
 
     // uint256 listingPrice = 0.025 ether;
     address payable owner;
-    string public dataUri;
+    // string public dataUri;
 
     // mapping(uint256 => MarketItem) private idToMarketItem;
-    mapping(string => ICryptix.Ticket) public Tickets;
+    mapping(string => ICryptix.NftTicket) public Tickets;
     // struct MarketItem {
     //   uint256 tokenId;
     //   address payable seller;
@@ -31,12 +31,12 @@ contract CryptixEvent is ERC721URIStorage {
     //   bool sold
     // );
 
-    constructor(address payable eventOwner, string memory eventTitle, string memory eventSymbol, string memory eventDataUri, ICryptix.Ticket[] memory _tickets) ERC721(eventTitle, eventSymbol) {
+    constructor(address payable eventOwner, string memory eventTitle, string memory eventSymbol, ICryptix.InTicket[] memory _tickets) ERC721(eventTitle, eventSymbol) {
         owner = eventOwner;
         for (uint256 i = 0; i < _tickets.length; i++) {
-            Tickets[_tickets[i].name] = _tickets[1];
+            Tickets[_tickets[i].name] = ICryptix.NftTicket(_tickets[i].number,_tickets[i].name,_tickets[i].descUri);
         }
-        dataUri = eventDataUri;
+        // dataUri = eventDataUri;
     }
 
     /* Updates the listing price of the contract */
