@@ -16,7 +16,7 @@ contract CrytpixMarketplace {
 
     using Counters for Counters.Counter;
     Counters.Counter private _eventIds;
-    Counters.Counter private _ticketsSold;
+    // Counters.Counter private _ticketsSold;
 
     event EventCreated(uint256 indexed eventId, address host);
 
@@ -46,8 +46,8 @@ contract CrytpixMarketplace {
         CryptixEvent new_event = new CryptixEvent(
             payable(msg.sender),
             title,
-            symbol,
-            _tickets
+            symbol
+            // _tickets
         );
         _eventIds.increment();
         uint256 newEventId = _eventIds.current();
